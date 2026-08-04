@@ -1,0 +1,110 @@
+local Flux = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/fluxlib.txt"))()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local Remotes = {
+    ShopPurchase = ReplicatedStorage:WaitForChild("Remotes").FromClient:WaitForChild("ShopPurchase"),
+    SwordSwing = ReplicatedStorage:WaitForChild("Remotes").FromClient:WaitForChild("SwordSwing"),
+}
+
+local function BuyItem(name, price)
+    local args = { [1] = { ["name"] = name, ["price"] = price or 1 } }
+    Remotes.ShopPurchase:FireServer(unpack(args))
+end
+
+local function BuyMoney(amount)
+    local args = { [1] = { ["price"] = -amount } }
+    Remotes.ShopPurchase:FireServer(unpack(args))
+end
+
+local function SwingSword()
+    Remotes.SwordSwing:FireServer()
+end
+
+local State = {
+    AutoFarm = false,
+    AuraFling = false,
+    Walkspeed = 16,
+    CurrentItem = "Banana",
+    MoneyAmount = 10000,
+}
+
+local win = Flux:Window("VPLIX", "SlipperyStairs", Color3.fromRGB(255, 50, 50), Enum.KeyCode.RightControl)
+
+local farmTab = win:Tab("FARM", "http://www.roblox.com/asset/?id=6023426915")
+
+farmTab:Slider("Money Amount", "Select how much money to add.", 100, 100000, 10000, function(t)
+    State.MoneyAmount = t
+end)
+
+farmTab:Button("Get Cash", "Adds selected amount of coins.", function()
+    BuyMoney(State.MoneyAmount)
+end)
+
+farmTab:Button("Buy All Items", "Purchases every item.", function()
+    local items = {"Banana", "Landmine", "Sword", "Helmet", "Shield"}
+    for _, item in ipairs(items) do
+        BuyItem(item, 1)
+        wait(0.1)
+    end
+end)
+
+farmTab:Toggle("Auto-Farm Coins", "Automatically buys money.", false, function(t)
+    State.AutoFarm = t
+    if t then
+        spawn(function()
+            while State.AutoFarm do
+                BuyMoney(State.MoneyAmount)
+                wait(0.5)
+            end
+        end)
+    end
+end)
+
+farmTab:Slider("Walkspeed", "Changes movement speed.", 0, 100, 16, function(t)
+    State.Walkspeed = t
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = t
+    end
+end)
+
+farmTab:Dropdown("Select Item", {"Banana", "Landmine", "Sword", "Helmet", "Shield"}, function(t)
+    State.CurrentItem = t
+end)
+
+farmTab:Button("Buy Selected", "Purchases selected item.", function()
+    BuyItem(State.CurrentItem, 1)
+end)
+
+local combatTab = win:Tab("COMBAT", "http://www.roblox.com/asset/?id=6022668888")
+
+combatTab:Toggle("Fling Aura", "Flings nearby players while holding sword.", false, function(t)
+    State.AuraFling = t
+    if t then
+        spawn(function()
+            while State.AuraFling do
+                SwingSword()
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+                        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            hrp.Velocity = Vector3.new(0, 50, 0) + (hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Unit * 80
+                        end
+                    end
+                end
+                wait(0.1)
+            end
+        end)
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        local humanoid = LocalPlayer.Character.Humanoid
+        if humanoid.WalkSpeed ~= State.Walkspeed then
+            humanoid.WalkSpeed = State.Walkspeed
+        end
+    end
+end)
