@@ -1,0 +1,327 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local Bits = Workspace
+local SpawnBit = ReplicatedStorage:WaitForChild("SpawnBit")
+local BitMerged = ReplicatedStorage:WaitForChild("BitMerged")
+
+local char, root
+local function bindChar(c)
+	char = c
+	root = c and c:FindFirstChild("HumanoidRootPart")
+	return root
+end
+if not bindChar(player.Character) then
+	player.CharacterAdded:Wait()
+	bindChar(player.Character)
+end
+player.CharacterAdded:Connect(bindChar)
+
+
+local COL_BG      = Color3.fromRGB(20, 20, 20)
+local COL_PANEL   = Color3.fromRGB(26, 26, 28)
+local COL_ACCENT  = Color3.fromRGB(80, 120, 175)
+local COL_TEXT    = Color3.fromRGB(220, 220, 220)
+local COL_DIM     = Color3.fromRGB(140, 140, 140)
+local COL_GOOD    = Color3.fromRGB(120, 200, 130)
+local COL_OVERLAY = Color3.fromRGB(18, 18, 19)
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BitsUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 99
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+local function rounded(img, rad)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, rad or 10)
+	c.Parent = img
+end
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(280, 320)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Position = UDim2.fromScale(0.5, 0.5)
+Main.BackgroundColor3 = COL_BG
+Main.BorderSizePixel = 0
+Main.ZIndex = 2
+Main.Parent = ScreenGui
+rounded(Main)
+
+local DragBar = Instance.new("Frame")
+DragBar.Size = UDim2.new(1, 0, 0, 24)
+DragBar.BackgroundColor3 = COL_OVERLAY
+DragBar.BorderSizePixel = 0
+DragBar.ZIndex = 2
+DragBar.Parent = Main
+rounded(DragBar, 6)
+
+local Title = Instance.new("TextLabel")
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, 0, 0, 24)
+Title.Text = "BITS FARM"
+Title.TextColor3 = COL_TEXT
+Title.TextSize = 13
+Title.Font = Enum.Font.GothamBold
+Title.ZIndex = 3
+Title.Parent = DragBar
+
+-- draggable
+local dragging, dragOff = false, Vector2.zero
+DragBar.InputBegan:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		local m = player:GetMouse()
+		dragOff = Vector2.new(m.X - Main.AbsolutePosition.X, m.Y - Main.AbsolutePosition.Y)
+	end
+end)
+DragBar.InputEnded:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+RunService.RenderStepped:Connect(function()
+	if dragging and Main and Main.Parent then
+		local m = player:GetMouse()
+		Main.Position = UDim2.fromOffset(m.X - dragOff.X, m.Y - dragOff.Y)
+	end
+end)
+
+local Status = Instance.new("TextLabel")
+Status.BackgroundTransparency = 1
+Status.Position = UDim2.fromOffset(10, 32)
+Status.Size = UDim2.new(1, -20, 0, 18)
+Status.Text = "Bits: 0"
+Status.TextColor3 = COL_DIM
+Status.TextSize = 12
+Status.Font = Enum.Font.Gotham
+Status.ZIndex = 3
+Status.Parent = Main
+
+local function makeBtn(text, y, accent)
+	local b = Instance.new("TextButton")
+	b.BackgroundColor3 = accent and COL_ACCENT or COL_PANEL
+	b.Position = UDim2.fromOffset(20, y)
+	b.Size = UDim2.new(1, -40, 0, 30)
+	b.Text = text
+	b.TextColor3 = COL_TEXT
+	b.TextSize = 12
+	b.Font = Enum.Font.GothamBold
+	b.ZIndex = 3
+	b.Parent = Main
+	rounded(b, 8)
+	return b
+end
+
+local TpBtn      = makeBtn("TP ALL BRICKS TO ME", 60, true)
+local HoldBtn    = makeBtn("BRING & HOLD", 96)
+local AutoMergeBtn = makeBtn("AUTO MERGE: OFF", 132)
+local SpawnAllBtn = makeBtn("SPAWN ALL FE BLOCKS", 168, true)
+local SpawnCustomBtn = makeBtn("SPAWN CUSTOM", 204)
+local CustomBox = Instance.new("TextBox")
+CustomBox.BackgroundColor3 = COL_PANEL
+CustomBox.Position = UDim2.fromOffset(20, 242)
+CustomBox.Size = UDim2.new(1, -40, 0, 30)
+CustomBox.PlaceholderText = "Brick name..."
+CustomBox.PlaceholderColor3 = COL_DIM
+CustomBox.Text = ""
+CustomBox.TextColor3 = COL_TEXT
+CustomBox.TextSize = 12
+CustomBox.Font = Enum.Font.Gotham
+CustomBox.BorderSizePixel = 0
+CustomBox.ZIndex = 3
+CustomBox.Parent = Main
+rounded(CustomBox, 6)
+Main.Size = UDim2.fromOffset(280, 360)
+
+local holding = false
+local autoMerge = false
+
+local function getBits()
+	local t = {}
+	for _, v in ipairs(Bits:GetChildren()) do
+		if v:IsA("BasePart") and (not v.Anchored) then
+			table.insert(t, v)
+		end
+	end
+	return t
+end
+
+local function updateStatus()
+	Status.Text = "Bits: " .. tostring(#getBits()) .. " unanchored"
+end
+task.spawn(function()
+	while task.wait(1) do updateStatus() end
+end)
+updateStatus()
+
+local function tpAllToMe(spread)
+	if not root then return end
+	local c = root.CFrame
+	for _, p in ipairs(getBits()) do
+		p.CFrame = c * CFrame.new(math.random(-spread, spread), math.random(0, 3), math.random(-spread, spread))
+		p.AssemblyLinearVelocity = Vector3.zero
+		p.AssemblyAngularVelocity = Vector3.zero
+	end
+end
+
+
+TpBtn.Activated:Connect(function()
+	tpAllToMe(5)
+end)
+
+HoldBtn.Activated:Connect(function()
+	holding = not holding
+	HoldBtn.Text = holding and "HOLDING..." or "BRING & HOLD"
+	if holding then
+		task.spawn(function()
+			while holding and root and root.Parent do
+				local c = root.CFrame
+				for _, p in ipairs(getBits()) do
+					if p.Parent then
+						p.CFrame = c * CFrame.new(0, 1, 0)
+						p.AssemblyLinearVelocity = Vector3.zero
+						p.AssemblyAngularVelocity = Vector3.zero
+					end
+				end
+				RunService.RenderStepped:Wait()
+			end
+		end)
+	end
+end)
+
+AutoMergeBtn.Activated:Connect(function()
+	autoMerge = not autoMerge
+	AutoMergeBtn.Text = autoMerge and "AUTO MERGE: ON" or "AUTO MERGE: OFF"
+end)
+
+SpawnAllBtn.Activated:Connect(function()
+	if not root then return end
+	local n = 0
+	for _, tmpl in ipairs(Bits:GetChildren()) do
+		if tmpl:IsA("BasePart") and not tmpl:IsA("Terrain") and tmpl.Name:lower() ~= "terrain" and not tmpl.Anchored then
+			tmpl.CFrame = root.CFrame * CFrame.new(0, 2, 0)
+			n = n + 1
+		end
+	end
+	print("[bits] brought", n, "FE blocks")
+end)
+
+SpawnCustomBtn.Activated:Connect(function()
+	local name = CustomBox.Text and CustomBox.Text:gsub("%s", "") or ""
+	if name == "" then return end
+	local tmpl = Bits:FindFirstChild(name)
+	if not tmpl then
+		warn("No FE template named:", name)
+		return
+	end
+	if tmpl:IsA("Terrain") or tmpl.Name:lower() == "terrain" then
+		print("[bits] terrain, skip")
+	elseif tmpl.Anchored then
+		print("[bits] "..name.." anchored, skip")
+	else
+		tmpl.CFrame = root.CFrame * CFrame.new(0, 2, 0)
+		print("[bits] brought "..name)
+	end
+end)
+
+
+local t4 = {
+	["Cake bit"] = { count = 4, result = "Full Cake bit" },
+	["Music bit"] = { count = 4, result = "Drum bit" }
+}
+local t5 = {
+	{ result = "Pen Pineapple Apple Pen bit", ingredients = { ["Pen bit"]=1, ["Apple bit"]=1, ["Pineapple bit"]=1 } },
+	{ result = "Trophy bit", ingredients = { ["Red Paintball bit"]=1, ["Blue Paintball bit"]=1, ["Green Paintball bit"]=1 } },
+	{ result = "Flat bit", ingredients = { ["Stick bit"]=1, ["Long bit"]=1 } },
+	{ result = "Brick^8 bit", ingredients = { ["Flat bit"]=1, ["Big bit"]=1 } },
+	{ result = "Witches Brew Hat bit", ingredients = { ["Witches Brew bit"]=2 } },
+}
+
+local function groupByName(bits)
+	local g = {}
+	for _, b in ipairs(bits) do
+		local n = b.Name
+		g[n] = g[n] or {}
+		table.insert(g[n], b)
+	end
+	return g
+end
+
+local function clusterMerge()
+	local bits = getBits()
+	local byName = groupByName(bits)
+
+	-- t4 simple count merges
+	for name, def in pairs(t4) do
+		local list = byName[name] or {}
+		while #list >= def.count do
+			local cluster = {}
+			local center = Vector3.new()
+			for i = 1, def.count do
+				local b = list[i]
+				table.insert(cluster, b)
+				center = center + b:GetPivot().Position
+			end
+			center = center / def.count
+			-- move them together
+			for _, b in ipairs(cluster) do
+				b.CFrame = CFrame.new(center + Vector3.new(math.random(-1,1), 0, math.random(-1,1)))
+			end
+			task.wait(0.3)
+			-- firing the same pattern the client does (BitMerged)
+			local t6 = { [name] = def.count }
+			pcall(function() BitMerged:FireServer(def.result, t6) end)
+		end
+	end
+
+	-- t5 recipe merges
+	for _, recipe in ipairs(t5) do
+		-- gather all required ingredient bits by name
+		local have = {}
+		for ingName, need in pairs(recipe.ingredients) do
+			local list = byName[ingName] or {}
+			have[ingName] = list
+		end
+		-- check availability
+		local ok = true
+		for ingName, need in pairs(recipe.ingredients) do
+			if #(have[ingName] or {}) < need then ok = false break end
+		end
+		if ok then
+			local cluster = {}
+			local center = Vector3.new()
+			for ingName, need in pairs(recipe.ingredients) do
+				local list = have[ingName]
+				for i = 1, need do
+					local b = list[i]
+					table.insert(cluster, b)
+					center = center + b:GetPivot().Position
+				end
+			end
+			center = center / #cluster
+			for _, b in ipairs(cluster) do
+				b.CFrame = CFrame.new(center + Vector3.new(math.random(-1,1), 0, math.random(-1,1)))
+			end
+			task.wait(0.3)
+			local t6 = {}
+			for ingName, need in pairs(recipe.ingredients) do t6[ingName] = need end
+			pcall(function() BitMerged:FireServer(recipe.result, t6) end)
+		end
+	end
+end
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if autoMerge then
+			pcall(clusterMerge)
+		end
+	end
+end)
+
+print("[bits] loaded - TP, Hold, AutoMerge")
